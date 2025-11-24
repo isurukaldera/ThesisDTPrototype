@@ -15,7 +15,7 @@ This repository contains the complete functional prototype developed for my Mast
 *Master's Programme in Digital Systems and Service Development*  
 *Author: Isuru Hollupathirage | Supervisor: Associate Professor Annika Wolff*
 
-### 🔍 Research Problem
+### Research Problem
 This prototype addresses key gaps identified in retail inventory management:
 - Lack of real-time shelf visibility in physical stores
 - Privacy concerns in customer tracking systems  
