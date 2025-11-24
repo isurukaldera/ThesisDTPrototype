@@ -5,7 +5,7 @@
 
 ---
 
-## 📚 Research Context
+##  Research Context
 
 This repository contains the complete functional prototype developed for my Master's Thesis:
 
@@ -22,15 +22,15 @@ This prototype addresses key gaps identified in retail inventory management:
 - Limited integration between physical operations and digital analytics
 - Inefficient demand forecasting leading to stockouts/overstocking
 
-### 🎯 Research Objectives Achieved
-1. ✅ **Comparative Analysis** of existing retail inventory systems
-2. ✅ **Conceptual Architecture** design integrating RFID and POS data
-3. ✅ **Functional Prototype** with 3D visualization and AI forecasting
-4. ✅ **Simulated AI Models** for demand prediction and inventory alerts
+### Research Objectives Achieved
+1.  **Comparative Analysis** of existing retail inventory systems
+2.  **Conceptual Architecture** design integrating RFID and POS data
+3.  **Functional Prototype** with 3D visualization and AI forecasting
+4.  **Simulated AI Models** for demand prediction and inventory alerts
 
 ---
 
-## 🏗️ Prototype Overview
+##  Prototype Overview
 
 This prototype demonstrates a **privacy-conscious Digital Twin** that bridges physical retail operations with digital intelligence through:
 
