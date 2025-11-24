@@ -16,7 +16,7 @@ This repository contains the complete functional prototype developed for my Mast
 
 **Prototype Overview**
 
-This prototype demonstrates a **privacy-conscious Digital Twin** that bridges physical retail operations with digital intelligence through:
+This prototype demonstrates a privacy-conscious Digital Twin that bridges physical retail operations with digital intelligence through:
 
  Core Components
 - 3D Virtual Environment (Unity): Real-time store and warehouse visualization
