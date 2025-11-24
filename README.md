@@ -49,7 +49,7 @@ This prototype demonstrates a **privacy-conscious Digital Twin** that bridges ph
 
 ---
 
-## 🧪 Research Methodology
+## Research Methodology
 
 ### Development Approach
 1. **Literature Review**: Comparative analysis of inventory systems (PRISMA protocol)
@@ -67,7 +67,7 @@ This prototype demonstrates a **privacy-conscious Digital Twin** that bridges ph
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 - Unity 2022.3.62f1
