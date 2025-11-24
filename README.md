@@ -8,7 +8,7 @@ A Functional Digital Twin Prototype for Retail Inventory Management
 
 This repository contains the complete functional prototype developed for my Master's Thesis:
 
-A Digital Twin System for Retail Inventory & Sales Management: From conceptual architecture to a functional AI-enhanced prototype
+**A Digital Twin System for Retail Inventory & Sales Management: From conceptual architecture to a functional AI-enhanced prototype**
 
 *Lappeenranta–Lahti University of Technology (LUT)*  
 *Master's Programme in Digital Systems and Service Development*  
