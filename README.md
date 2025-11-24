@@ -18,7 +18,7 @@ This repository contains the complete functional prototype developed for my Mast
 
 This prototype demonstrates a privacy-conscious Digital Twin that bridges physical retail operations with digital intelligence through:
 
- Core Components
+ **Core Components**
 - 3D Virtual Environment (Unity): Real-time store and warehouse visualization
 - AI Forecasting Engine: Ensemble model (SMA + WMA + Linear Regression)
 - Heatmap Analytics: Sales performance visualization
@@ -27,7 +27,7 @@ This prototype demonstrates a privacy-conscious Digital Twin that bridges physic
 
 
 
- Technical Implementation
+ **Technical Implementation**
 | Research Component | Implementation |
 |-------------------|----------------|
 | Virtual Representation | Unity 3D environment with spatial mapping |
@@ -39,7 +39,7 @@ This prototype demonstrates a privacy-conscious Digital Twin that bridges physic
 
 
 
-Prerequisites
+**Prerequisites**
 - Unity 2022.3.62f1
 
 
