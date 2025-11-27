@@ -1,0 +1,939 @@
+-- Add these tables to your database
+CREATE TABLE IF NOT EXISTS Promotions (
+    PromotionID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    PromotionName TEXT NOT NULL,
+    DiscountPercentage REAL NOT NULL,
+    StartDate DATE NOT NULL,
+    EndDate DATE NOT NULL,
+    ExpectedLiftPercentage REAL DEFAULT 0.2,
+    Status TEXT DEFAULT 'active',
+    CreatedDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
+);
+
+CREATE TABLE IF NOT EXISTS SeasonalPatterns (
+    PatternID INTEGER PRIMARY KEY AUTOINCREMENT,
+    Category TEXT NOT NULL,
+    Month INTEGER NOT NULL,
+    SeasonalityFactor REAL NOT NULL,
+    Description TEXT,
+    UNIQUE(Category, Month)
+);
+
+CREATE TABLE IF NOT EXISTS ExternalFactors (
+    FactorID INTEGER PRIMARY KEY AUTOINCREMENT,
+    FactorDate DATE NOT NULL,
+    IsHoliday BOOLEAN DEFAULT FALSE,
+    HolidayName TEXT,
+    WeatherImpact REAL DEFAULT 1.0,
+    EconomicIndex REAL DEFAULT 1.0,
+    SpecialEvent TEXT
+);
+
+CREATE TABLE IF NOT EXISTS DemandForecasts (
+    ForecastID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    ForecastDate DATE NOT NULL,
+    PeriodDays INTEGER NOT NULL,
+    PredictedDemand REAL NOT NULL,
+    ConfidenceLevel REAL NOT NULL,
+    ForecastType TEXT NOT NULL, -- 'baseline', 'promotional', 'seasonal'
+    Factors JSON, -- JSON string containing influencing factors
+    CreatedDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
+);
+
+
+
+-- DROP OLD TABLES IF EXISTS
+DROP TABLE IF EXISTS StockTransactions;
+DROP TABLE IF EXISTS StoreStock;
+DROP TABLE IF EXISTS WarehouseStock;
+DROP TABLE IF EXISTS Products;
+DROP TABLE IF EXISTS StoreRows;
+DROP TABLE IF EXISTS StoreShelves;
+DROP TABLE IF EXISTS WarehouseRows;
+DROP TABLE IF EXISTS WarehouseShelves;
+
+-- CREATE STRUCTURE
+
+-- Store Shelves (Supermarket)
+CREATE TABLE StoreShelves (
+    ShelfID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ShelfName TEXT NOT NULL,
+    FurnitureType TEXT NOT NULL DEFAULT 'Shelf'
+);
+
+CREATE TABLE StoreRows (
+    RowID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ShelfID INTEGER NOT NULL,
+    RowNumber INTEGER NOT NULL,
+    MaxProducts INTEGER DEFAULT 4,  -- Changed from 2 to 4
+    FOREIGN KEY (ShelfID) REFERENCES StoreShelves(ShelfID)
+);
+
+-- Warehouse Shelves
+CREATE TABLE WarehouseShelves (
+    ShelfID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ShelfName TEXT NOT NULL
+);
+
+CREATE TABLE WarehouseRows (
+    RowID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ShelfID INTEGER NOT NULL,
+    RowNumber INTEGER NOT NULL,
+    FOREIGN KEY (ShelfID) REFERENCES WarehouseShelves(ShelfID)
+);
+
+-- Products (common to both)
+CREATE TABLE Products (
+    ProductID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductName TEXT NOT NULL,
+    Brand TEXT,
+    Flavour TEXT,
+    Size TEXT,
+    Category TEXT,
+    PreferredFurniture TEXT DEFAULT 'Shelf'
+);
+
+-- Stock in Store (Supermarket)
+CREATE TABLE StoreStock (
+    StockID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    RowID INTEGER NOT NULL,
+    Quantity INTEGER DEFAULT 0,
+    LastRestocked DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID),
+    FOREIGN KEY (RowID) REFERENCES StoreRows(RowID)
+);
+
+-- Stock in Warehouse
+CREATE TABLE WarehouseStock (
+    StockID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    RowID INTEGER NOT NULL,
+    Quantity INTEGER DEFAULT 0,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID),
+    FOREIGN KEY (RowID) REFERENCES WarehouseRows(RowID)
+);
+
+-- Transaction history
+CREATE TABLE StockTransactions (
+    TransactionID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    Source TEXT NOT NULL,  -- 'store' or 'warehouse'
+    Destination TEXT,  -- NULL for sales, 'store' for restocking
+    QuantityChanged INTEGER NOT NULL,
+    TransactionType TEXT NOT NULL,  -- 'sale', 'restock', 'transfer'
+    TransactionDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
+);
+
+-- Add forecasting tables to your existing schema
+CREATE TABLE IF NOT EXISTS SalesHistory (
+    SalesID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    SaleDate DATE NOT NULL,
+    QuantitySold INTEGER NOT NULL,
+    DayOfWeek INTEGER NOT NULL,
+    IsHoliday BOOLEAN DEFAULT 0,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
+);
+
+CREATE TABLE IF NOT EXISTS DemandForecasts (
+    ForecastID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    ForecastDate DATE NOT NULL,
+    PeriodType TEXT NOT NULL, -- 'daily', 'weekly', 'monthly'
+    PredictedDemand REAL NOT NULL,
+    ConfidenceLevel REAL DEFAULT 0.8,
+    GeneratedDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
+);
+
+CREATE TABLE IF NOT EXISTS RestockRecommendations (
+    RecommendationID INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductID INTEGER NOT NULL,
+    GeneratedDate DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PeriodStart DATE NOT NULL,
+    PeriodEnd DATE NOT NULL,
+    PredictedDemand REAL NOT NULL,
+    CurrentShelfStock INTEGER NOT NULL,
+    CurrentWarehouseStock INTEGER NOT NULL,
+    RecommendedShelfTransfer INTEGER NOT NULL,
+    RecommendedSupplierOrder INTEGER NOT NULL,
+    SafetyBuffer REAL DEFAULT 0.15,
+    Status TEXT DEFAULT 'pending', -- 'pending', 'approved', 'executed'
+    FOREIGN KEY (ProductID) REFERENCES Products(ProductID)
+);
+
+-- Add reorder threshold to products table
+ALTER TABLE Products ADD COLUMN ReorderThreshold INTEGER DEFAULT 20;
+ALTER TABLE Products ADD COLUMN LeadTimeDays INTEGER DEFAULT 7;
+ALTER TABLE Products ADD COLUMN SupplierID INTEGER;
+
+-- INSERT FURNITURE TYPES
+
+-- Regular shelves A1-A32 (32 shelves, 5 rows each)
+INSERT INTO StoreShelves (ShelfName, FurnitureType) VALUES
+('A1', 'Shelf'),('A2', 'Shelf'),('A3', 'Shelf'),('A4', 'Shelf'),('A5', 'Shelf'),
+('A6', 'Shelf'),('A7', 'Shelf'),('A8', 'Shelf'),('A9', 'Shelf'),('A10', 'Shelf'),
+('A11', 'Shelf'),('A12', 'Shelf'),('A13', 'Shelf'),('A14', 'Shelf'),('A15', 'Shelf'),
+('A16', 'Shelf'),('A17', 'Shelf'),('A18', 'Shelf'),('A19', 'Shelf'),('A20', 'Shelf'),
+('A21', 'Shelf'),('A22', 'Shelf'),('A23', 'Shelf'),('A24', 'Shelf'),('A25', 'Shelf'),
+('A26', 'Shelf'),('A27', 'Shelf'),('A28', 'Shelf'),('A29', 'Shelf'),('A30', 'Shelf'),
+('A31', 'Shelf'),('A32', 'Shelf');
+
+-- Fridges (4 fridges, 5 rows each)
+INSERT INTO StoreShelves (ShelfName, FurnitureType) VALUES
+('Fridge1', 'Fridge'),('Fridge2', 'Fridge'),('Fridge3', 'Fridge'),('Fridge4', 'Fridge');
+
+-- Coolers (4 coolers, 20 rows each)
+INSERT INTO StoreShelves (ShelfName, FurnitureType) VALUES
+('Cooler1', 'Cooler'),('Cooler2', 'Cooler'),('Cooler3', 'Cooler'),('Cooler4', 'Cooler');
+
+-- Insert rows for all furniture
+
+-- Regular shelves (5 rows each) - Changed MaxProducts to 4
+INSERT INTO StoreRows (ShelfID, RowNumber, MaxProducts)
+SELECT ShelfID, RowNumber, 4
+FROM StoreShelves
+CROSS JOIN (SELECT 1 AS RowNumber UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5)
+WHERE FurnitureType = 'Shelf'
+ORDER BY ShelfID, RowNumber;
+
+-- Fridges (5 rows each) - Changed MaxProducts to 4
+INSERT INTO StoreRows (ShelfID, RowNumber, MaxProducts)
+SELECT ShelfID, RowNumber, 4
+FROM StoreShelves
+CROSS JOIN (SELECT 1 AS RowNumber UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5)
+WHERE FurnitureType = 'Fridge'
+ORDER BY ShelfID, RowNumber;
+
+-- Coolers (20 rows each) - Changed MaxProducts to 4
+INSERT INTO StoreRows (ShelfID, RowNumber, MaxProducts)
+SELECT ShelfID, RowNumber, 4
+FROM StoreShelves
+CROSS JOIN (
+    SELECT 1 AS RowNumber UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5
+    UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10
+    UNION SELECT 11 UNION SELECT 12 UNION SELECT 13 UNION SELECT 14 UNION SELECT 15
+    UNION SELECT 16 UNION SELECT 17 UNION SELECT 18 UNION SELECT 19 UNION SELECT 20
+)
+WHERE FurnitureType = 'Cooler'
+ORDER BY ShelfID, RowNumber;
+
+-- INSERT WAREHOUSE SHELVES (LocationA-LocationG with correct rows)
+INSERT INTO WarehouseShelves (ShelfName) VALUES
+('LocationA'),('LocationB'),('LocationC'),('LocationD'),('LocationE'),('LocationF'),('LocationG');
+
+-- LocationA and LocationG have 8 rows, others have 6 rows
+INSERT INTO WarehouseRows (ShelfID, RowNumber) VALUES
+-- LocationA (8 rows)
+(1,1),(1,2),(1,3),(1,4),(1,5),(1,6),(1,7),(1,8),
+-- LocationB (6 rows)
+(2,1),(2,2),(2,3),(2,4),(2,5),(2,6),
+-- LocationC (6 rows)
+(3,1),(3,2),(3,3),(3,4),(3,5),(3,6),
+-- LocationD (6 rows)
+(4,1),(4,2),(4,3),(4,4),(4,5),(4,6),
+-- LocationE (6 rows)
+(5,1),(5,2),(5,3),(5,4),(5,5),(5,6),
+-- LocationF (6 rows)
+(6,1),(6,2),(6,3),(6,4),(6,5),(6,6),
+-- LocationG (8 rows)
+(7,1),(7,2),(7,3),(7,4),(7,5),(7,6),(7,7),(7,8);
+
+-- INSERT PRODUCTS (with PreferredFurniture)
+
+-- Dairy Products (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+-- Milk
+('Milk','Valio','Original','250ml','Dairy','Shelf'),
+('Milk','Valio','Original','500ml','Dairy','Shelf'),
+('Milk','Valio','Original','1L','Dairy','Shelf'),
+('Milk','Valio','Original','1.5L','Dairy','Shelf'),
+('Milk','Arla','Chocolate','250ml','Dairy','Shelf'),
+('Milk','Arla','Chocolate','500ml','Dairy','Shelf'),
+('Milk','Arla','Chocolate','1L','Dairy','Shelf'),
+('Milk','Arla','Chocolate','1.5L','Dairy','Shelf'),
+('Milk','Rainbow','Vanilla','250ml','Dairy','Shelf'),
+('Milk','Rainbow','Vanilla','500ml','Dairy','Shelf'),
+('Milk','Rainbow','Vanilla','1L','Dairy','Shelf'),
+('Milk','Rainbow','Vanilla','1.5L','Dairy','Shelf'),
+('Milk','Pirkka','Strawberry','250ml','Dairy','Shelf'),
+('Milk','Pirkka','Strawberry','500ml','Dairy','Shelf'),
+('Milk','Pirkka','Strawberry','1L','Dairy','Shelf'),
+('Milk','Pirkka','Strawberry','1.5L','Dairy','Shelf'),
+('Milk','Fazer','Chocolate','250ml','Dairy','Shelf'),
+('Milk','Fazer','Chocolate','500ml','Dairy','Shelf'),
+('Milk','Fazer','Chocolate','1L','Dairy','Shelf'),
+('Milk','Fazer','Chocolate','1.5L','Dairy','Shelf'),
+
+-- Yogurt
+('Yogurt','Valio','Natural','150g','Dairy','Shelf'),
+('Yogurt','Valio','Vanilla','150g','Dairy','Shelf'),
+('Yogurt','Valio','Strawberry','150g','Dairy','Shelf'),
+('Yogurt','Valio','Blueberry','150g','Dairy','Shelf'),
+('Yogurt','Arla','Natural','150g','Dairy','Shelf'),
+('Yogurt','Arla','Vanilla','150g','Dairy','Shelf'),
+('Yogurt','Arla','Strawberry','150g','Dairy','Shelf'),
+('Yogurt','Arla','Peach','150g','Dairy','Shelf'),
+('Yogurt','Rainbow','Natural','150g','Dairy','Shelf'),
+('Yogurt','Rainbow','Vanilla','150g','Dairy','Shelf'),
+('Yogurt','Rainbow','Strawberry','150g','Dairy','Shelf'),
+('Yogurt','Rainbow','Mixed Berry','150g','Dairy','Shelf'),
+
+-- Cheese
+('Cheese','Valio','Edam','200g','Dairy','Shelf'),
+('Cheese','Valio','Emmental','200g','Dairy','Shelf'),
+('Cheese','Valio','Gouda','200g','Dairy','Shelf'),
+('Cheese','Valio','Cheddar','200g','Dairy','Shelf'),
+('Cheese','Arla','Edam','200g','Dairy','Shelf'),
+('Cheese','Arla','Emmental','200g','Dairy','Shelf'),
+('Cheese','Arla','Gouda','200g','Dairy','Shelf'),
+('Cheese','Arla','Cheddar','200g','Dairy','Shelf'),
+('Cheese','Rainbow','Edam','200g','Dairy','Shelf'),
+('Cheese','Rainbow','Emmental','200g','Dairy','Shelf'),
+('Cheese','Rainbow','Gouda','200g','Dairy','Shelf'),
+('Cheese','Rainbow','Cheddar','200g','Dairy','Shelf'),
+('Cheese','Pirkka','Edam','200g','Dairy','Shelf'),
+('Cheese','Pirkka','Emmental','200g','Dairy','Shelf'),
+('Cheese','Pirkka','Gouda','200g','Dairy','Shelf'),
+('Cheese','Pirkka','Cheddar','200g','Dairy','Shelf'),
+
+-- Butter
+('Butter','Valio','Salted','250g','Dairy','Shelf'),
+('Butter','Valio','Unsalted','250g','Dairy','Shelf'),
+('Butter','Lurpak','Salted','250g','Dairy','Shelf'),
+('Butter','Lurpak','Unsalted','250g','Dairy','Shelf');
+
+-- Beverages (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+-- Juice
+('Juice','Rynkeby','Orange','250ml','Beverages','Shelf'),
+('Juice','Rynkeby','Orange','500ml','Beverages','Shelf'),
+('Juice','Rynkeby','Orange','1L','Beverages','Shelf'),
+('Juice','Rynkeby','Orange','1.5L','Beverages','Shelf'),
+('Juice','Rainbow','Apple','250ml','Beverages','Shelf'),
+('Juice','Rainbow','Apple','500ml','Beverages','Shelf'),
+('Juice','Rainbow','Apple','1L','Beverages','Shelf'),
+('Juice','Rainbow','Apple','1.5L','Beverages','Shelf'),
+('Juice','Innocent','Mixed Berry','250ml','Beverages','Shelf'),
+('Juice','Innocent','Mixed Berry','500ml','Beverages','Shelf'),
+('Juice','Innocent','Mixed Berry','1L','Beverages','Shelf'),
+('Juice','Innocent','Mixed Berry','1.5L','Beverages','Shelf'),
+('Juice','Tropicana','Orange','250ml','Beverages','Shelf'),
+('Juice','Tropicana','Orange','500ml','Beverages','Shelf'),
+('Juice','Tropicana','Orange','1L','Beverages','Shelf'),
+('Juice','Tropicana','Orange','1.5L','Beverages','Shelf'),
+('Juice','Tropicana','Apple','250ml','Beverages','Shelf'),
+('Juice','Tropicana','Apple','500ml','Beverages','Shelf'),
+('Juice','Tropicana','Apple','1L','Beverages','Shelf'),
+('Juice','Tropicana','Apple','1.5L','Beverages','Shelf'),
+
+-- Water
+('Water','Vichy','','500ml','Beverages','Shelf'),
+('Water','Vichy','','1L','Beverages','Shelf'),
+('Water','Evian','','500ml','Beverages','Shelf'),
+('Water','Evian','','1L','Beverages','Shelf'),
+('Water','Aqua','','500ml','Beverages','Shelf'),
+('Water','Aqua','','1L','Beverages','Shelf'),
+('Water','Perrier','','500ml','Beverages','Shelf'),
+('Water','Perrier','','1L','Beverages','Shelf'),
+('Water','Fiji','','500ml','Beverages','Shelf'),
+('Water','Fiji','','1L','Beverages','Shelf'),
+('Water','San Pellegrino','','500ml','Beverages','Shelf'),
+('Water','San Pellegrino','','1L','Beverages','Shelf'),
+
+-- Coffee
+('Coffee','Paulig','','250g','Beverages','Shelf'),
+('Coffee','Paulig','','500g','Beverages','Shelf'),
+('Coffee','Meira','','250g','Beverages','Shelf'),
+('Coffee','Meira','','500g','Beverages','Shelf'),
+('Coffee','Lavazza','','250g','Beverages','Shelf'),
+('Coffee','Lavazza','','500g','Beverages','Shelf'),
+('Coffee','Segafredo','','250g','Beverages','Shelf'),
+('Coffee','Segafredo','','500g','Beverages','Shelf'),
+('Coffee','Nescafe','Instant','100g','Beverages','Shelf'),
+('Coffee','Nescafe','Instant','200g','Beverages','Shelf'),
+('Coffee','Starbucks','House Blend','250g','Beverages','Shelf'),
+('Coffee','Starbucks','House Blend','500g','Beverages','Shelf'),
+
+-- Tea
+('Tea','Lipton','','20 bags','Beverages','Shelf'),
+('Tea','Lipton','','50 bags','Beverages','Shelf'),
+('Tea','Pirkka','','20 bags','Beverages','Shelf'),
+('Tea','Pirkka','','50 bags','Beverages','Shelf'),
+('Tea','Twinings','Earl Grey','20 bags','Beverages','Shelf'),
+('Tea','Twinings','English Breakfast','20 bags','Beverages','Shelf'),
+('Tea','Twinings','Green Tea','20 bags','Beverages','Shelf'),
+('Tea','Twinings','Chamomile','20 bags','Beverages','Shelf'),
+('Tea','Twinings','Lady Grey','20 bags','Beverages','Shelf'),
+('Tea','Twinings','Darjeeling','20 bags','Beverages','Shelf'),
+('Tea','Tetley','','20 bags','Beverages','Shelf'),
+('Tea','Tetley','','50 bags','Beverages','Shelf'),
+
+-- Soft Drinks
+('Soft Drink','Coca-Cola','Original','330ml','Beverages','Shelf'),
+('Soft Drink','Coca-Cola','Original','500ml','Beverages','Shelf'),
+('Soft Drink','Pepsi','Original','330ml','Beverages','Shelf'),
+('Soft Drink','Pepsi','Original','500ml','Beverages','Shelf'),
+('Soft Drink','Fanta','Orange','330ml','Beverages','Shelf'),
+('Soft Drink','Fanta','Orange','500ml','Beverages','Shelf'),
+('Soft Drink','Sprite','Lemon','330ml','Beverages','Shelf'),
+('Soft Drink','Sprite','Lemon','500ml','Beverages','Shelf'),
+('Soft Drink','Jaffa','Orange','330ml','Beverages','Shelf'),
+('Soft Drink','Jaffa','Orange','500ml','Beverages','Shelf'),
+('Soft Drink','7UP','Lemon-Lime','330ml','Beverages','Shelf'),
+('Soft Drink','7UP','Lemon-Lime','500ml','Beverages','Shelf'),
+('Soft Drink','Dr Pepper','Original','330ml','Beverages','Shelf'),
+('Soft Drink','Dr Pepper','Original','500ml','Beverages','Shelf'),
+('Soft Drink','Mountain Dew','Original','330ml','Beverages','Shelf'),
+('Soft Drink','Mountain Dew','Original','500ml','Beverages','Shelf'),
+('Soft Drink','Red Bull','','250ml','Beverages','Shelf'),
+('Soft Drink','Red Bull','','500ml','Beverages','Shelf'),
+('Soft Drink','Monster','Energy','500ml','Beverages','Shelf'),
+('Soft Drink','Monster','Energy','1L','Beverages','Shelf');
+
+-- Frozen Foods (assign to Fridge and Cooler)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+-- Frozen Pizza
+('Frozen Pizza','Dr. Oetker','Margherita','300g','Frozen','Fridge'),
+('Frozen Pizza','Dr. Oetker','Pepperoni','400g','Frozen','Fridge'),
+('Frozen Pizza','Rainbow','Hawaiian','500g','Frozen','Fridge'),
+('Frozen Pizza','Rainbow','Cheese','600g','Frozen','Fridge'),
+('Frozen Pizza','Grandiosa','Pepperoni','400g','Frozen','Fridge'),
+('Frozen Pizza','Grandiosa','Kebab','450g','Frozen','Fridge'),
+('Frozen Pizza','Pizza Hut','Supreme','500g','Frozen','Fridge'),
+('Frozen Pizza','Pizza Hut','Meat Lovers','550g','Frozen','Fridge'),
+('Frozen Pizza','Pizza Hut','Vegetarian','500g','Frozen','Fridge'),
+('Frozen Pizza','Pizza Hut','BBQ Chicken','550g','Frozen','Fridge'),
+('Frozen Pizza','Pizza Hut','Margherita','500g','Frozen','Fridge'),
+('Frozen Pizza','Pizza Hut','Pepperoni','550g','Frozen','Fridge'),
+
+-- Frozen Vegetables
+('Frozen Veg','Pirkka','Mixed','250g','Frozen','Cooler'),
+('Frozen Veg','Pirkka','Mixed','500g','Frozen','Cooler'),
+('Frozen Veg','Rainbow','Peas','250g','Frozen','Cooler'),
+('Frozen Veg','Rainbow','Peas','500g','Frozen','Cooler'),
+('Frozen Veg','Birds Eye','Mixed','250g','Frozen','Cooler'),
+('Frozen Veg','Birds Eye','Mixed','500g','Frozen','Cooler'),
+('Frozen Veg','Findus','Broccoli','250g','Frozen','Cooler'),
+('Frozen Veg','Findus','Broccoli','500g','Frozen','Cooler'),
+('Frozen Veg','Findus','Cauliflower','250g','Frozen','Cooler'),
+('Frozen Veg','Findus','Cauliflower','500g','Frozen','Cooler'),
+('Frozen Veg','Findus','Carrots','250g','Frozen','Cooler'),
+('Frozen Veg','Findus','Carrots','500g','Frozen','Cooler'),
+('Frozen Veg','Findus','Green Beans','250g','Frozen','Cooler'),
+('Frozen Veg','Findus','Green Beans','500g','Frozen','Cooler'),
+
+-- Ice Cream
+('Ice Cream','Ingman','Vanilla','100ml','Frozen','Cooler'),
+('Ice Cream','Ingman','Chocolate','200ml','Frozen','Cooler'),
+('Ice Cream','Pingviini','Vanilla','100ml','Frozen','Cooler'),
+('Ice Cream','Pingviini','Chocolate','200ml','Frozen','Cooler'),
+('Ice Cream','Ben & Jerry','Chocolate Fudge Brownie','500ml','Frozen','Cooler'),
+('Ice Cream','Ben & Jerry','Cookie Dough','500ml','Frozen','Cooler'),
+('Ice Cream','Häagen-Dazs','Vanilla','500ml','Frozen','Cooler'),
+('Ice Cream','Häagen-Dazs','Strawberry','500ml','Frozen','Cooler'),
+('Ice Cream','Häagen-Dazs','Chocolate','500ml','Frozen','Cooler'),
+('Ice Cream','Häagen-Dazs','Coffee','500ml','Frozen','Cooler'),
+('Ice Cream','Magnum','Classic','100ml','Frozen','Cooler'),
+('Ice Cream','Magnum','Almond','100ml','Frozen','Cooler'),
+('Ice Cream','Magnum','White','100ml','Frozen','Cooler'),
+('Ice Cream','Magnum','Double Caramel','100ml','Frozen','Cooler');
+
+-- Meat (assign to Fridge)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Beef','HK','','500g','Meat','Fridge'),
+('Beef','HK','','1kg','Meat','Fridge'),
+('Chicken','Snellman','','500g','Meat','Fridge'),
+('Chicken','Snellman','','1kg','Meat','Fridge'),
+('Pork','HK','','500g','Meat','Fridge'),
+('Pork','HK','','1kg','Meat','Fridge'),
+('Lamb','Snellman','','500g','Meat','Fridge'),
+('Lamb','Snellman','','1kg','Meat','Fridge'),
+('Turkey','HK','','500g','Meat','Fridge'),
+('Turkey','HK','','1kg','Meat','Fridge'),
+('Sausages','HK','Pork','400g','Meat','Fridge'),
+('Sausages','HK','Chicken','400g','Meat','Fridge'),
+('Sausages','HK','Beef','400g','Meat','Fridge'),
+('Sausages','Snellman','Pork','400g','Meat','Fridge'),
+('Sausages','Snellman','Chicken','400g','Meat','Fridge'),
+('Sausages','Snellman','Beef','400g','Meat','Fridge'),
+('Bacon','HK','Smoked','200g','Meat','Fridge'),
+('Bacon','HK','Unsmoked','200g','Meat','Fridge'),
+('Bacon','Snellman','Smoked','200g','Meat','Fridge'),
+('Bacon','Snellman','Unsmoked','200g','Meat','Fridge'),
+('Ham','HK','Smoked','200g','Meat','Fridge'),
+('Ham','HK','Unsmoked','200g','Meat','Fridge'),
+('Ham','Snellman','Smoked','200g','Meat','Fridge'),
+('Ham','Snellman','Unsmoked','200g','Meat','Fridge'),
+('Minced Meat','HK','Beef','500g','Meat','Fridge'),
+('Minced Meat','HK','Pork','500g','Meat','Fridge'),
+('Minced Meat','HK','Chicken','500g','Meat','Fridge'),
+('Minced Meat','Snellman','Beef','500g','Meat','Fridge'),
+('Minced Meat','Snellman','Pork','500g','Meat','Fridge'),
+('Minced Meat','Snellman','Chicken','500g','Meat','Fridge');
+
+-- Toiletries (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Soap','Dove','','100g','Toiletries','Shelf'),
+('Soap','Lux','','100g','Toiletries','Shelf'),
+('Shampoo','Head & Shoulders','','200ml','Toiletries','Shelf'),
+('Shampoo','Pantene','','250ml','Toiletries','Shelf'),
+('Toothpaste','Colgate','','100ml','Toiletries','Shelf'),
+('Toothpaste','Oral-B','','100ml','Toiletries','Shelf'),
+('Deodorant','Nivea','','150ml','Toiletries','Shelf'),
+('Deodorant','Dove','','150ml','Toiletries','Shelf'),
+('Conditioner','Head & Shoulders','','200ml','Toiletries','Shelf'),
+('Conditioner','Pantene','','250ml','Toiletries','Shelf'),
+('Shower Gel','Dove','','250ml','Toiletries','Shelf'),
+('Shower Gel','Nivea','','250ml','Toiletries','Shelf'),
+('Shower Gel','Radox','','250ml','Toiletries','Shelf'),
+('Shower Gel','Original Source','','250ml','Toiletries','Shelf'),
+('Body Lotion','Nivea','','250ml','Toiletries','Shelf'),
+('Body Lotion','Dove','','250ml','Toiletries','Shelf'),
+('Body Lotion','Vaseline','','250ml','Toiletries','Shelf'),
+('Body Lotion','E45','','250ml','Toiletries','Shelf'),
+('Face Cream','Nivea','','50ml','Toiletries','Shelf'),
+('Face Cream','Olay','','50ml','Toiletries','Shelf'),
+('Face Cream','Garnier','','50ml','Toiletries','Shelf'),
+('Face Cream','Loreal','','50ml','Toiletries','Shelf'),
+('Razor','Gillette','','1 piece','Toiletries','Shelf'),
+('Razor','Wilkinson','','1 piece','Toiletries','Shelf'),
+('Shaving Foam','Gillette','','200ml','Toiletries','Shelf'),
+('Shaving Foam','Nivea','','200ml','Toiletries','Shelf'),
+('Shaving Foam','Wilkinson','','200ml','Toiletries','Shelf'),
+('Mouthwash','Listerine','','500ml','Toiletries','Shelf'),
+('Mouthwash','Colgate','','500ml','Toiletries','Shelf'),
+('Mouthwash','Oral-B','','500ml','Toiletries','Shelf'),
+('Dental Floss','Oral-B','','50m','Toiletries','Shelf'),
+('Dental Floss','Colgate','','50m','Toiletries','Shelf'),
+('Cotton Pads','Pirkka','','100 pieces','Toiletries','Shelf'),
+('Cotton Pads','Rainbow','','100 pieces','Toiletries','Shelf'),
+('Cotton Buds','Pirkka','','100 pieces','Toiletries','Shelf'),
+('Cotton Buds','Rainbow','','100 pieces','Toiletries','Shelf'),
+('Tissues','Pirkka','','10 packs','Toiletries','Shelf'),
+('Tissues','Rainbow','','10 packs','Toiletries','Shelf'),
+('Toilet Paper','Pirkka','','4 rolls','Toiletries','Shelf'),
+('Toilet Paper','Rainbow','','4 rolls','Toiletries','Shelf');
+
+-- Cleaning Products (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Paper Towels','Pirkka','','2-roll','Cleaning','Shelf'),
+('Toilet Paper','Pirkka','','4-roll','Cleaning','Shelf'),
+('Dish Soap','Fairy','','500ml','Cleaning','Shelf'),
+('Surface Cleaner','Cif','','500ml','Cleaning','Shelf'),
+('Laundry Detergent','Persil','','1.5L','Cleaning','Shelf'),
+('Laundry Detergent','Ariel','','1.5L','Cleaning','Shelf'),
+('Window Cleaner','Mr. Muscle','','500ml','Cleaning','Shelf'),
+('Floor Cleaner','Mr. Proper','','1L','Cleaning','Shelf'),
+('Bleach','Klorin','','1L','Cleaning','Shelf'),
+('Bleach','Rainbow','','1L','Cleaning','Shelf'),
+('All-Purpose Cleaner','Pirkka','','750ml','Cleaning','Shelf'),
+('All-Purpose Cleaner','Rainbow','','750ml','Cleaning','Shelf'),
+('Dishwasher Tablets','Fairy','','30 tablets','Cleaning','Shelf'),
+('Dishwasher Tablets','Finish','','30 tablets','Cleaning','Shelf'),
+('Dishwasher Salt','Finish','','2kg','Cleaning','Shelf'),
+('Dishwasher Salt','Rainbow','','2kg','Cleaning','Shelf'),
+('Rinse Aid','Finish','','500ml','Cleaning','Shelf'),
+('Rinse Aid','Rainbow','','500ml','Cleaning','Shelf'),
+('Oven Cleaner','Mr. Muscle','','500ml','Cleaning','Shelf'),
+('Oven Cleaner','Rainbow','','500ml','Cleaning','Shelf'),
+('Bathroom Cleaner','Cif','','500ml','Cleaning','Shelf'),
+('Bathroom Cleaner','Rainbow','','500ml','Cleaning','Shelf'),
+('Toilet Cleaner','Duck','','750ml','Cleaning','Shelf'),
+('Toilet Cleaner','Rainbow','','750ml','Cleaning','Shelf'),
+('Glass Cleaner','Mr. Muscle','','750ml','Cleaning','Shelf'),
+('Glass Cleaner','Rainbow','','750ml','Cleaning','Shelf'),
+('Fabric Softener','Comfort','','1L','Cleaning','Shelf'),
+('Fabric Softener','Rainbow','','1L','Cleaning','Shelf'),
+('Carpet Cleaner','Vanish','','500ml','Cleaning','Shelf'),
+('Carpet Cleaner','Rainbow','','500ml','Cleaning','Shelf');
+
+-- Liquor (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Vodka','Finlandia','','250ml','Alcohol','Shelf'),
+('Vodka','Finlandia','','500ml','Alcohol','Shelf'),
+('Whiskey','Jameson','','250ml','Alcohol','Shelf'),
+('Whiskey','Jameson','','500ml','Alcohol','Shelf'),
+('Rum','Bacardi','','250ml','Alcohol','Shelf'),
+('Rum','Bacardi','','500ml','Alcohol','Shelf'),
+('Gin','Beefeater','','250ml','Alcohol','Shelf'),
+('Gin','Beefeater','','500ml','Alcohol','Shelf'),
+('Wine','Chateau','Red','750ml','Alcohol','Shelf'),
+('Wine','Chateau','White','750ml','Alcohol','Shelf'),
+('Beer','Heineken','','330ml','Alcohol','Shelf'),
+('Beer','Corona','','330ml','Alcohol','Shelf'),
+('Beer','Budweiser','','330ml','Alcohol','Shelf'),
+('Beer','Stella Artois','','330ml','Alcohol','Shelf'),
+('Beer','Carlsberg','','330ml','Alcohol','Shelf'),
+('Beer','Tuborg','','330ml','Alcohol','Shelf'),
+('Beer','Guinness','','330ml','Alcohol','Shelf'),
+('Beer','Kilkenny','','330ml','Alcohol','Shelf'),
+('Cider','Strongbow','','500ml','Alcohol','Shelf'),
+('Cider','Bulmers','','500ml','Alcohol','Shelf'),
+('Cider','Rekorderlig','','500ml','Alcohol','Shelf'),
+('Cider','Kopparberg','','500ml','Alcohol','Shelf'),
+('Liqueur','Baileys','','500ml','Alcohol','Shelf'),
+('Liqueur','Kahua','','500ml','Alcohol','Shelf'),
+('Liqueur','Cointreau','','500ml','Alcohol','Shelf'),
+('Liqueur','Grand Marnier','','500ml','Alcohol','Shelf'),
+('Tequila','Jose Cuervo','','500ml','Alcohol','Shelf'),
+('Tequila','Patron','','500ml','Alcohol','Shelf'),
+('Champagne','Moet & Chandon','','750ml','Alcohol','Shelf'),
+('Champagne','Veuve Clicquot','','750ml','Alcohol','Shelf');
+
+-- Snacks and Confectionery (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Chocolate','Fazer','Milk','100g','Snacks','Shelf'),
+('Chocolate','Fazer','Dark','100g','Snacks','Shelf'),
+('Chocolate','Fazer','White','100g','Snacks','Shelf'),
+('Chocolate','Marabou','Milk','100g','Snacks','Shelf'),
+('Chocolate','Marabou','Dark','100g','Snacks','Shelf'),
+('Chocolate','Marabou','White','100g','Snacks','Shelf'),
+('Chocolate','Lindt','Milk','100g','Snacks','Shelf'),
+('Chocolate','Lindt','Dark','100g','Snacks','Shelf'),
+('Chocolate','Lindt','White','100g','Snacks','Shelf'),
+('Chips','Pringles','Original','150g','Snacks','Shelf'),
+('Chips','Pringles','Sour Cream','150g','Snacks','Shelf'),
+('Chips','Pringles','Paprika','150g','Snacks','Shelf'),
+('Chips','Pringles','Salt & Vinegar','150g','Snacks','Shelf'),
+('Chips','Lays','Original','150g','Snacks','Shelf'),
+('Chips','Lays','Salt & Vinegar','150g','Snacks','Shelf'),
+('Chips','Lays','Cheese & Onion','150g','Snacks','Shelf'),
+('Chips','Lays','Sour Cream','150g','Snacks','Shelf'),
+('Chips','Taffel','Original','150g','Snacks','Shelf'),
+('Chips','Taffel','Salt & Vinegar','150g','Snacks','Shelf'),
+('Chips','Taffel','Cheese & Onion','150g','Snacks','Shelf'),
+('Chips','Taffel','Sour Cream','150g','Snacks','Shelf'),
+('Nuts','Pirkka','Salted','200g','Snacks','Shelf'),
+('Nuts','Pirkka','Unsalted','200g','Snacks','Shelf'),
+('Nuts','Rainbow','Salted','200g','Snacks','Shelf'),
+('Nuts','Rainbow','Unsalted','200g','Snacks','Shelf'),
+('Popcorn','Pirkka','Salted','150g','Snacks','Shelf'),
+('Popcorn','Pirkka','Caramel','150g','Snacks','Shelf'),
+('Popcorn','Rainbow','Salted','150g','Snacks','Shelf'),
+('Popcorn','Rainbow','Caramel','150g','Snacks','Shelf'),
+('Biscuits','Oreo','Original','150g','Snacks','Shelf'),
+('Biscuits','Oreo','Double Stuf','150g','Snacks','Shelf'),
+('Biscuits','Oreo','Golden','150g','Snacks','Shelf'),
+('Biscuits','Digestive','Original','150g','Snacks','Shelf'),
+('Biscuits','Digestive','Chocolate','150g','Snacks','Shelf'),
+('Biscuits','Digestive','Wholemeal','150g','Snacks','Shelf'),
+('Biscuits','Shortbread','Original','150g','Snacks','Shelf'),
+('Biscuits','Shortbread','Chocolate','150g','Snacks','Shelf'),
+('Biscuits','Shortbread','Almond','150g','Snacks','Shelf'),
+('Candy','Haribo','Goldbears','200g','Snacks','Shelf'),
+('Candy','Haribo','Happy Cola','200g','Snacks','Shelf');
+
+-- Bakery (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Bread','Fazer','Whole Grain','500g','Bakery','Shelf'),
+('Bread','Fazer','Rye','500g','Bakery','Shelf'),
+('Bread','Fazer','Wheat','500g','Bakery','Shelf'),
+('Bread','Pirkka','Whole Grain','500g','Bakery','Shelf'),
+('Bread','Pirkka','Rye','500g','Bakery','Shelf'),
+('Bread','Pirkka','Wheat','500g','Bakery','Shelf'),
+('Bread','Rainbow','Whole Grain','500g','Bakery','Shelf'),
+('Bread','Rainbow','Rye','500g','Bakery','Shelf'),
+('Bread','Rainbow','Wheat','500g','Bakery','Shelf'),
+('Buns','Fazer','Cinnamon','4 pieces','Bakery','Shelf'),
+('Buns','Fazer','Cardamom','4 pieces','Bakery','Shelf'),
+('Buns','Fazer','Plain','4 pieces','Bakery','Shelf'),
+('Buns','Pirkka','Cinnamon','4 pieces','Bakery','Shelf'),
+('Buns','Pirkka','Cardamom','4 pieces','Bakery','Shelf'),
+('Buns','Pirkka','Plain','4 pieces','Bakery','Shelf'),
+('Croissants','Fazer','Butter','4 pieces','Bakery','Shelf'),
+('Croissants','Fazer','Chocolate','4 pieces','Bakery','Shelf'),
+('Croissants','Fazer','Almond','4 pieces','Bakery','Shelf'),
+('Croissants','Pirkka','Butter','4 pieces','Bakery','Shelf'),
+('Croissants','Pirkka','Chocolate','4 pieces','Bakery','Shelf'),
+('Croissants','Pirkka','Almond','4 pieces','Bakery','Shelf'),
+('Bagels','Fazer','Plain','4 pieces','Bakery','Shelf'),
+('Bagels','Fazer','Sesame','4 pieces','Bakery','Shelf'),
+('Bagels','Fazer','Poppy Seed','4 pieces','Bakery','Shelf'),
+('Bagels','Pirkka','Plain','4 pieces','Bakery','Shelf'),
+('Bagels','Pirkka','Sesame','4 pieces','Bakery','Shelf'),
+('Bagels','Pirkka','Poppy Seed','4 pieces','Bakery','Shelf'),
+('Cake','Fazer','Chocolate','400g','Bakery','Shelf'),
+('Cake','Fazer','Vanilla','400g','Bakery','Shelf'),
+('Cake','Fazer','Carrot','400g','Bakery','Shelf');
+
+-- Pet Food (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Dog Food','Royal Canin','Chicken','2kg','Pet','Shelf'),
+('Dog Food','Royal Canin','Beef','2kg','Pet','Shelf'),
+('Dog Food','Royal Canin','Lamb','2kg','Pet','Shelf'),
+('Dog Food','Hills','Chicken','2kg','Pet','Shelf'),
+('Dog Food','Hills','Beef','2kg','Pet','Shelf'),
+('Dog Food','Hills','Lamb','2kg','Pet','Shelf'),
+('Cat Food','Royal Canin','Chicken','2kg','Pet','Shelf'),
+('Cat Food','Royal Canin','Fish','2kg','Pet','Shelf'),
+('Cat Food','Royal Canin','Turkey','2kg','Pet','Shelf'),
+('Cat Food','Hills','Chicken','2kg','Pet','Shelf'),
+('Cat Food','Hills','Fish','2kg','Pet','Shelf'),
+('Cat Food','Hills','Turkey','2kg','Pet','Shelf'),
+('Bird Food','Pirkka','Mixed','1kg','Pet','Shelf'),
+('Bird Food','Rainbow','Mixed','1kg','Pet','Shelf'),
+('Fish Food','Tetra','Flakes','100g','Pet','Shelf'),
+('Fish Food','Tetra','Pellets','100g','Pet','Shelf'),
+('Fish Food','Tetra','Sticks','100g','Pet','Shelf'),
+('Small Animal Food','Pirkka','Mixed','1kg','Pet','Shelf'),
+('Small Animal Food','Rainbow','Mixed','1kg','Pet','Shelf'),
+('Pet Treats','Pirkka','Bones','200g','Pet','Shelf');
+
+-- Baby Products (assign to regular shelves)
+INSERT INTO Products (ProductName, Brand, Flavour, Size, Category, PreferredFurniture) VALUES
+('Baby Formula','Aptamil','Stage 1','800g','Baby','Shelf'),
+('Baby Formula','Aptamil','Stage 2','800g','Baby','Shelf'),
+('Baby Formula','Aptamil','Stage 3','800g','Baby','Shelf'),
+('Baby Formula','Cow & Gate','Stage 1','800g','Baby','Shelf'),
+('Baby Formula','Cow & Gate','Stage 2','800g','Baby','Shelf'),
+('Baby Formula','Cow & Gate','Stage 3','800g','Baby','Shelf'),
+('Baby Food','Hipp','Apple','120g','Baby','Shelf'),
+('Baby Food','Hipp','Pear','120g','Baby','Shelf'),
+('Baby Food','Hipp','Banana','120g','Baby','Shelf'),
+('Baby Food','Hipp','Carrot','120g','Baby','Shelf'),
+('Baby Food','Hipp','Potato','120g','Baby','Shelf'),
+('Baby Food','Hipp','Chicken','120g','Baby','Shelf'),
+('Diapers','Pampers','Size 1','44 pieces','Baby','Shelf'),
+('Diapers','Pampers','Size 2','44 pieces','Baby','Shelf'),
+('Diapers','Pampers','Size 3','44 pieces','Baby','Shelf'),
+('Diapers','Huggies','Size 1','44 pieces','Baby','Shelf'),
+('Diapers','Huggies','Size 2','44 pieces','Baby','Shelf'),
+('Diapers','Huggies','Size 3','44 pieces','Baby','Shelf'),
+('Baby Wipes','Pampers','Sensitive','80 pieces','Baby','Shelf'),
+('Baby Wipes','Huggies','Sensitive','80 pieces','Baby','Shelf');
+
+-- Update existing products with reorder thresholds
+UPDATE Products SET ReorderThreshold = 
+    CASE 
+        WHEN Category IN ('Dairy', 'Beverages') THEN 15
+        WHEN Category IN ('Frozen', 'Meat') THEN 10
+        WHEN Category IN ('Alcohol', 'Snacks') THEN 25
+        ELSE 20 
+    END;
+
+-- WAREHOUSE STOCK ASSIGNMENT
+
+-- Clear existing warehouse stock
+DELETE FROM WarehouseStock;
+
+-- Assign products to warehouse rows with realistic distribution
+WITH RowCapacities AS (
+    SELECT
+        r.RowID,
+        r.ShelfID,
+        r.RowNumber,
+        CASE
+            WHEN r.ShelfID IN (1, 7) AND r.RowNumber BETWEEN 7 AND 8 THEN 2
+            ELSE 5
+        END AS Capacity
+    FROM WarehouseRows r
+),
+
+CategoryShelfMapping AS (
+    SELECT
+        p.ProductID,
+        p.ProductName,
+        p.Brand,
+        p.Flavour,
+        p.Size,
+        p.Category,
+        CASE
+            WHEN p.Category = 'Dairy' THEN 1
+            WHEN p.Category = 'Beverages' THEN 2
+            WHEN p.Category = 'Frozen' THEN 3
+            WHEN p.Category = 'Meat' THEN 4
+            WHEN p.Category = 'Toiletries' THEN 5
+            WHEN p.Category = 'Cleaning' THEN 6
+            WHEN p.Category = 'Alcohol' THEN 7
+            ELSE (p.ProductID % 7) + 1
+        END AS AssignedShelfID
+    FROM Products p
+    WHERE p.ProductID BETWEEN 1 AND 350
+),
+
+ShelfProductCounts AS (
+    SELECT
+        AssignedShelfID,
+        COUNT(*) as TotalProducts
+    FROM CategoryShelfMapping
+    GROUP BY AssignedShelfID
+),
+
+RowProductAssignments AS (
+    SELECT
+        csm.ProductID,
+        csm.Category,
+        rc.RowID,
+        rc.ShelfID,
+        rc.RowNumber,
+        rc.Capacity,
+        (csm.ProductID + rc.RowID * 17) % spc.TotalProducts + 1 as SelectionIndex,
+        ROW_NUMBER() OVER (PARTITION BY rc.RowID ORDER BY (csm.ProductID + rc.RowID * 17) % spc.TotalProducts) as RowProductNumber
+    FROM CategoryShelfMapping csm
+    JOIN RowCapacities rc ON csm.AssignedShelfID = rc.ShelfID
+    JOIN ShelfProductCounts spc ON csm.AssignedShelfID = spc.AssignedShelfID
+)
+
+INSERT INTO WarehouseStock (ProductID, RowID, Quantity)
+SELECT
+    rpa.ProductID,
+    rpa.RowID,
+    180 + (rpa.ProductID % 70) + (rpa.RowID % 30) as Quantity
+FROM RowProductAssignments rpa
+WHERE rpa.RowProductNumber <= rpa.Capacity
+ORDER BY rpa.RowID, rpa.RowProductNumber;
+
+-- STORE STOCK ASSIGNMENT
+
+-- Clear existing store stock
+DELETE FROM StoreStock;
+
+-- Assign products to appropriate furniture based on PreferredFurniture
+WITH ProductCategories AS (
+    SELECT
+        p.ProductID,
+        p.ProductName,
+        p.Brand,
+        p.Flavour,
+        p.Size,
+        p.Category,
+        p.PreferredFurniture,
+        -- Create a unique identifier for each product variation
+        ROW_NUMBER() OVER (
+            PARTITION BY p.Category, p.ProductName, p.Brand
+            ORDER BY p.Size, p.Flavour
+        ) as product_variation
+    FROM Products p
+),
+
+CategoryGroups AS (
+    SELECT
+        pc.*,
+        -- Group products by category and assign a sequential number
+        ROW_NUMBER() OVER (
+            PARTITION BY pc.Category
+            ORDER BY pc.ProductName, pc.Brand, pc.product_variation
+        ) as category_product_number
+    FROM ProductCategories pc
+),
+
+FurnitureRows AS (
+    SELECT
+        sr.RowID,
+        ss.ShelfID,
+        ss.ShelfName,
+        ss.FurnitureType,
+        sr.RowNumber,
+        sr.MaxProducts,
+        -- Assign a sequential number to rows within each furniture type
+        ROW_NUMBER() OVER (
+            PARTITION BY ss.FurnitureType
+            ORDER BY ss.ShelfID, sr.RowNumber
+        ) as furniture_row_number,
+        -- Count total rows per furniture type
+        COUNT(*) OVER (PARTITION BY ss.FurnitureType) as total_rows_per_type
+    FROM StoreRows sr
+    JOIN StoreShelves ss ON sr.ShelfID = ss.ShelfID
+),
+
+-- Define category-to-shelf mapping for ALL categories and ALL shelf types
+CategoryShelfMapping AS (
+    -- Regular shelves (A1-A32)
+    SELECT 'Dairy' AS Category, 'A1' AS StartShelf, 'A3' AS EndShelf
+    UNION SELECT 'Beverages' AS Category, 'A4' AS StartShelf, 'A6' AS EndShelf
+    UNION SELECT 'Alcohol' AS Category, 'A7' AS StartShelf, 'A9' AS EndShelf
+    UNION SELECT 'Snacks' AS Category, 'A10' AS StartShelf, 'A12' AS EndShelf
+    UNION SELECT 'Pet' AS Category, 'A13' AS StartShelf, 'A15' AS EndShelf
+    UNION SELECT 'Baby' AS Category, 'A16' AS StartShelf, 'A18' AS EndShelf
+    UNION SELECT 'Toiletries' AS Category, 'A20' AS StartShelf, 'A21' AS EndShelf
+    UNION SELECT 'Cleaning' AS Category, 'A24' AS StartShelf, 'A25' AS EndShelf
+    UNION SELECT 'Bakery' AS Category, 'A22' AS StartShelf, 'A23' AS EndShelf
+    -- Fridges (4 fridges)
+    UNION SELECT 'Frozen' AS Category, 'Fridge1' AS StartShelf, 'Fridge4' AS EndShelf
+    -- Coolers (4 coolers)
+    UNION SELECT 'Meat' AS Category, 'Cooler1' AS StartShelf, 'Cooler4' AS EndShelf
+),
+
+MappedShelfIDs AS (
+    SELECT
+        csm.Category,
+        ss.ShelfID,
+        ss.ShelfName,
+        ss.FurnitureType
+    FROM CategoryShelfMapping csm
+    JOIN StoreShelves ss ON (
+        (ss.ShelfName BETWEEN csm.StartShelf AND csm.EndShelf) OR
+        (ss.ShelfName = csm.StartShelf AND csm.StartShelf = csm.EndShelf)
+    )
+),
+
+MappedRowIDs AS (
+    SELECT
+        m.Category,
+        sr.RowID,
+        sr.ShelfID,
+        sr.RowNumber,
+        sr.MaxProducts,
+        ROW_NUMBER() OVER (PARTITION BY m.Category ORDER BY sr.ShelfID, sr.RowNumber) as category_row_number,
+        COUNT(*) OVER (PARTITION BY m.Category) as total_rows_in_category
+    FROM MappedShelfIDs m
+    JOIN StoreRows sr ON m.ShelfID = sr.ShelfID
+),
+
+AssignedProducts AS (
+    SELECT
+        cg.ProductID,
+        mr.RowID,
+        cg.Category,
+        cg.category_product_number,
+        mr.MaxProducts,
+        mr.category_row_number,
+        mr.total_rows_in_category,
+        -- Calculate which row this product should be assigned to
+        (cg.category_product_number - 1) / mr.MaxProducts + 1 as target_row,
+        -- Calculate position within the row (1-4)
+        ((cg.category_product_number - 1) % mr.MaxProducts) + 1 as position_in_row
+    FROM CategoryGroups cg
+    JOIN MappedRowIDs mr ON cg.Category = mr.Category
+    WHERE mr.category_row_number = (cg.category_product_number - 1) / mr.MaxProducts + 1
+    OR ((cg.category_product_number - 1) / mr.MaxProducts + 1 > mr.total_rows_in_category
+        AND mr.category_row_number = mr.total_rows_in_category)
+)
+
+INSERT INTO StoreStock (ProductID, RowID, Quantity)
+SELECT
+    ap.ProductID,
+    ap.RowID,
+    -- Create realistic quantity variations
+    CASE
+        WHEN (ap.position_in_row % 5) = 0 THEN 80 + (ap.target_row % 20)
+        WHEN (ap.position_in_row % 5) = 1 THEN 50 + (ap.target_row % 15)
+        WHEN (ap.position_in_row % 5) = 2 THEN 20 + (ap.target_row % 15)
+        ELSE 5 + (ap.target_row % 10)
+    END as Quantity
+FROM AssignedProducts ap
+ORDER BY ap.RowID, ap.ProductID;
+
+-- Additional assignment for products that might not have been assigned above
+-- This ensures all products get placed somewhere
+INSERT INTO StoreStock (ProductID, RowID, Quantity)
+SELECT
+    p.ProductID,
+    (SELECT MIN(RowID) FROM StoreRows WHERE ShelfID IN (
+        SELECT ShelfID FROM StoreShelves WHERE FurnitureType = p.PreferredFurniture
+    )) as RowID,
+    10 as Quantity
+FROM Products p
+WHERE p.ProductID NOT IN (SELECT ProductID FROM StoreStock)
+ORDER BY p.ProductID;
+
+
+
+
